@@ -2,20 +2,21 @@ name: Auto Renew Free Fire Tokens
 
 on:
   schedule:
-    # Tự động chạy lúc 00:00 UTC (07:00 sáng VN) mỗi ngày
     - cron: '0 0 * * *'
-  workflow_dispatch: # Cho phép kích hoạt chạy bằng tay
+  workflow_dispatch:
 
 jobs:
   renew-tokens:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Cấp quyền ghi mã nguồn trực tiếp cho job
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4   # Cập nhật lên v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -29,8 +30,8 @@ jobs:
 
       - name: Commit and Push Updated tokens.txt
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action Bot"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add tokens.txt
           git commit -m "Auto update fresh Free Fire tokens [skip ci]" || exit 0
           git push
