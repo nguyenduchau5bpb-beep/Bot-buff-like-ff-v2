@@ -16,8 +16,8 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 # === CẤU HÌNH TOKEN ===
-BOT_TOKEN = os.getenv("BOT_TOKEN", "MÃ_BOT_TELEGRAM_CỦA_BẠN")
-FF_TOKEN = os.getenv("FF_TOKEN", "MÃ_FREE_FIRE_TOKEN_CỦA_BẠN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+FF_TOKEN = os.getenv("FF_TOKEN")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -39,7 +39,7 @@ def check_uid(message):
             "Content-Type": "application/json"
         }
         
-        url = f"https://client.ff.garena.com/get_player_info?uid={uid}"
+        url = f"https://clientbp.ggblueshark.com/get_player_info?uid={uid}"
         response = requests.get(url, headers=headers, timeout=12)
         status_code = response.status_code
 
@@ -47,7 +47,7 @@ def check_uid(message):
             data = response.json()
             if "error" in data or "message" in data:
                 err_msg = data.get("error") or data.get("message")
-                msg = f"❌ **CHECK THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Loi:** {err_msg}"
+                msg = f"❌ **CHECK THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Lỗi:** {err_msg}"
             else:
                 msg = (
                     f"✅ **CHECK THÀNH CÔNG**\n\n"
@@ -63,14 +63,14 @@ def check_uid(message):
             except Exception:
                 err_detail = response.text or "Lỗi không xác định"
 
-            msg = f"❌ **CHECK THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Loi:** {err_detail}"
+            msg = f"❌ **CHECK THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Lỗi:** {err_detail}"
 
         bot.reply_to(message, msg, parse_mode="Markdown")
 
     except requests.exceptions.Timeout:
-        bot.reply_to(message, f"❌ **CHECK THẤT BẠI**\n\n**UID:** `{uid}`\n**Loi:** Request Timeout")
+        bot.reply_to(message, f"❌ **CHECK THẤT BẠI**\n\n**UID:** `{uid}`\n**Lỗi:** Request Timeout")
     except Exception as e:
-        bot.reply_to(message, f"❌ **CHECK THẤT BẠI**\n\n**Loi hệ thống:** {str(e)}")
+        bot.reply_to(message, f"❌ **CHECK THẤT BẠI**\n\n**Lỗi hệ thống:** {str(e)}")
 
 # ----------------------------------------------------
 # 2. LỆNH BUFF LIKE (/like <UID> hoặc /bufflike <UID>)
@@ -90,7 +90,7 @@ def buff_like(message):
             "Content-Type": "application/json"
         }
         
-        url = f"https://client.ff.garena.com/like_player?uid={uid}"
+        url = f"https://clientbp.ggblueshark.com/like_player?uid={uid}"
         response = requests.post(url, headers=headers, timeout=12)
         status_code = response.status_code
 
@@ -98,7 +98,7 @@ def buff_like(message):
             data = response.json()
             if "error" in data or "message" in data:
                 err_msg = data.get("error") or data.get("message")
-                msg = f"❌ **BUFF LIKE THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Loi:** {err_msg}"
+                msg = f"❌ **BUFF LIKE THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Lỗi:** {err_msg}"
             else:
                 msg = f"✅ **BUFF LIKE THÀNH CÔNG**\n\n**UID:** `{uid}`\n**Trạng thái:** Đã gửi tim thành công!"
         else:
@@ -108,24 +108,23 @@ def buff_like(message):
             except Exception:
                 err_detail = response.text or "Lỗi không xác định"
 
-            msg = f"❌ **BUFF LIKE THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Loi:** {err_detail}"
+            msg = f"❌ **BUFF LIKE THẤT BẠI**\n\n**UID:** `{uid}`\n**Status:** {status_code}\n**Lỗi:** {err_detail}"
 
         bot.reply_to(message, msg, parse_mode="Markdown")
 
     except requests.exceptions.Timeout:
-        bot.reply_to(message, f"❌ **BUFF LIKE THẤT BẠI**\n\n**UID:** `{uid}`\n**Loi:** Request Timeout")
+        bot.reply_to(message, f"❌ **BUFF LIKE THẤT BẠI**\n\n**UID:** `{uid}`\n**Lỗi:** Request Timeout")
     except Exception as e:
-        bot.reply_to(message, f"❌ **BUFF LIKE THẤT BẠI**\n\n**Loi hệ thống:** {str(e)}")
+        bot.reply_to(message, f"❌ **BUFF LIKE THẤT BẠI**\n\n**Lỗi hệ thống:** {str(e)}")
 
 # ----------------------------------------------------
 # KHỞI CHẠY BOT VÀ FLASK SERVER
 # ----------------------------------------------------
 if __name__ == "__main__":
-    # Khởi chạy Flask Server ở luồng phụ (Thread)
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
 
-    # Khởi chạy Bot Telegram ở luồng chính
     print("Bot Telegram và Flask Web Server đang hoạt động...")
     bot.infinity_polling()
+ 
