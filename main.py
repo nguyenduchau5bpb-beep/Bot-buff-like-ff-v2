@@ -5,7 +5,7 @@ from flask import Flask
 import telebot
 
 # ====================================================
-# 1. CẤU HÌNH FLASK WEB SERVER (DÙNG GIỮ PORT RENDER)
+# 1. CẤU HÌNH FLASK WEB SERVER (GIỮ PORT RENDER 24/7)
 # ====================================================
 app = Flask(__name__)
 
@@ -27,85 +27,93 @@ if not BOT_TOKEN:
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ====================================================
-# 3. DANH SÁCH API ENDPOINTS (TỰ ĐỘNG XOAY VÒNG DỰ PHÒNG)
+# 3. DANH SÁCH API CHECK THÔNG TIN DỰ PHÒNG
 # ====================================================
 INFO_APIS = [
     "https://api-freefire.vercel.app/info/{uid}?region=VN",
-    "https://free-fire-api-four.vercel.app/info?uid={uid}&region=VN",
-    "https://ff-api-src.vercel.app/info?uid={uid}&region=VN"
+    "https://region-info-ff.vercel.app/info?uid={uid}&region=VN",
+    "https://free-fire-api-garena.vercel.app/api/info/{uid}"
 ]
 
-LIKE_APIS = [
-    "https://api-freefire.vercel.app/like/{uid}?region=VN",
-    "https://free-fire-api-four.vercel.app/like?uid={uid}&region=VN&key=FREE",
-    "https://ff-api-src.vercel.app/like?uid={uid}&region=VN"
-]
-
-# ====================================================
-# 4. HÀM XỬ LÝ GỌI API LINH HOẠT (FALLBACK SYSTEM)
-# ====================================================
-def fetch_api_data(api_list, uid):
-    """
-    Duyệt qua lần lượt từng URL trong danh sách.
-    Nếu URL nào phản hồi thành công (HTTP 200) thì trả về dữ liệu ngay lập tức.
-    """
-    for api_template in api_list:
+def fetch_info(uid):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    for api_template in INFO_APIS:
         url = api_template.format(uid=uid)
         try:
-            response = requests.get(url, timeout=8)
+            response = requests.get(url, headers=headers, timeout=8)
             if response.status_code == 200:
                 data = response.json()
                 if not ("error" in data or "message" in data and len(data) == 1):
                     return True, data
         except Exception:
-            continue  # Nếu lỗi kết nối hoặc timeout, tự động chuyển sang API tiếp theo
+            continue
     return False, None
 
 # ====================================================
-# 5. LỆNH /START & /HELP
+# 4. HÀM BUFF LIKE TỪ POOL TOKEN (FILE tokens.txt)
+# ====================================================
+def buff_like_with_tokens(target_uid):
+    token_file = "tokens.txt"
+    if not os.path.exists(token_file):
+        return False, "Không tìm thấy file tokens.txt! Hệ thống đang chờ GitHub Actions tạo mới."
+
+    with open(token_file, "r", encoding="utf-8") as f:
+        tokens = [line.strip() for line in f if line.strip()]
+
+    if not tokens:
+        return False, "File tokens.txt hiện đang trống!"
+
+    success_count = 0
+    for token in tokens:
+        try:
+            url = f"https://clientbp.ggblueshark.com/like_player?uid={target_uid}"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 11; M2010J19SG Build/RKQ1.201022.002)",
+                "Content-Type": "application/json"
+            }
+            res = requests.post(url, headers=headers, timeout=5)
+            if res.status_code == 200:
+                success_count += 1
+        except Exception:
+            continue
+
+    if success_count > 0:
+        return True, f"Đã gửi thành công {success_count}/{len(tokens)} tim!"
+    return False, "Tất cả Token trong file đều không hợp lệ hoặc đã hết hạn."
+
+# ====================================================
+# 5. LỆNH BOT TELEGRAM (/start, /check, /like)
 # ====================================================
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
         "🤖 **HỆ THỐNG BOT FREE FIRE AUTOMATION** 🤖\n\n"
-        "Chào mừng bạn! Dưới đây là danh sách các lệnh khả dụng:\n\n"
         "🔍 `/check <UID>` - Kiểm tra thông tin tài khoản\n"
         "👍 `/like <UID>` - Buff lượt thích (Like) cho tài khoản\n\n"
         "💡 *Ví dụ:* `/check 18365419475`"
     )
     bot.reply_to(message, welcome_text, parse_mode="Markdown")
 
-# ====================================================
-# 6. LỆNH CHECK UID (/check <UID>)
-# ====================================================
 @bot.message_handler(commands=['check'])
 def check_uid(message):
     try:
         args = message.text.split()
-        if len(args) < 2:
-            bot.reply_to(
-                message, 
-                "⚠ **CÚ PHÁP KHÔNG HỢP LỆ!**\nVui lòng nhập: `/check <UID>`\n*Ví dụ:* `/check 18365419475`", 
-                parse_mode="Markdown"
-            )
+        if len(args) < 2 or not args[1].isdigit():
+            bot.reply_to(message, "⚠ **CÚ PHÁP KHÔNG HỢP LỆ!**\nVí dụ: `/check 18365419475`", parse_mode="Markdown")
             return
 
         uid = args[1].strip()
-        if not uid.isdigit():
-            bot.reply_to(message, "❌ **LỖI:** UID phải là dãy chữ số!", parse_mode="Markdown")
-            return
+        status_msg = bot.reply_to(message, "⏳ *Đang tra cứu dữ liệu...*", parse_mode="Markdown")
 
-        status_msg = bot.reply_to(message, "⏳ *Đang tra cứu dữ liệu (Tự động kết nối server tối ưu)...*", parse_mode="Markdown")
-
-        # Thử gọi danh sách API
-        success, data = fetch_api_data(INFO_APIS, uid)
-
+        success, data = fetch_info(uid)
         if success and data:
             account_info = data.get("AccountInfo") or data.get("data") or data
             nickname = account_info.get("AccountName") or account_info.get("nickname") or "Không rõ"
             level = account_info.get("AccountLevel") or account_info.get("level") or "N/A"
             likes = account_info.get("AccountLikes") or account_info.get("likes") or "N/A"
-            region = account_info.get("AccountRegion") or "VN"
 
             msg = (
                 "🎮 **THÔNG TIN TÀI KHOẢN FREE FIRE**\n"
@@ -114,60 +122,45 @@ def check_uid(message):
                 f"🆔 **UID:** `{uid}`\n"
                 f"⭐ **Cấp độ (Level):** `{level}`\n"
                 f"👍 **Lượt thích (Likes):** `{likes}`\n"
-                f"🌐 **Khu vực:** `{region}`\n"
                 "━━━━━━━━━━━━━━━━━━━━"
             )
         else:
-            msg = f"❌ **TRA CỨU THẤT BẠI**\n\n🆔 **UID:** `{uid}`\n⚠️ Tất cả các API server hiện tại đều không phản hồi. Vui lòng thử lại sau!"
+            msg = f"❌ **TRA CỨU THẤT BẠI**\n\n🆔 **UID:** `{uid}`\n⚠️ Các API server hiện tại không phản hồi."
 
         bot.edit_message_text(msg, chat_id=status_msg.chat.id, message_id=status_msg.message_id, parse_mode="Markdown")
-
     except Exception as e:
         bot.reply_to(message, f"❌ **LỖI HỆ THỐNG:** `{str(e)}`", parse_mode="Markdown")
 
-# ====================================================
-# 7. LỆNH BUFF LIKE (/like <UID>)
-# ====================================================
 @bot.message_handler(commands=['like', 'bufflike'])
 def buff_like(message):
     try:
         args = message.text.split()
-        if len(args) < 2:
-            bot.reply_to(
-                message, 
-                "⚠ **CÚ PHÁP KHÔNG HỢP LỆ!**\nVui lòng nhập: `/like <UID>`\n*Ví dụ:* `/like 18365419475`", 
-                parse_mode="Markdown"
-            )
+        if len(args) < 2 or not args[1].isdigit():
+            bot.reply_to(message, "⚠ **CÚ PHÁP KHÔNG HỢP LỆ!**\nVí dụ: `/like 18365419475`", parse_mode="Markdown")
             return
 
         uid = args[1].strip()
-        if not uid.isdigit():
-            bot.reply_to(message, "❌ **LỖI:** UID phải là dãy chữ số!", parse_mode="Markdown")
-            return
+        status_msg = bot.reply_to(message, "⏳ *Đang tiến hành Buff Like từ Token Pool...*", parse_mode="Markdown")
 
-        status_msg = bot.reply_to(message, "⏳ *Đang kết nối Server Buff Like...*", parse_mode="Markdown")
+        success, result_msg = buff_like_with_tokens(uid)
 
-        # Thử gọi danh sách API
-        success, data = fetch_api_data(LIKE_APIS, uid)
-
-        if success and data:
+        if success:
             msg = (
                 "🎉 **BUFF LIKE THÀNH CÔNG!**\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 f"🆔 **UID Được Buff:** `{uid}`\n"
-                "✨ **Trạng thái:** Đã gửi tim thành công!\n"
+                f"✨ **Kết quả:** {result_msg}\n"
                 "━━━━━━━━━━━━━━━━━━━━"
             )
         else:
-            msg = f"❌ **BUFF LIKE THẤT BẠI**\n\n🆔 **UID:** `{uid}`\n⚠️ Tất cả các API server hiện tại đều không phản hồi. Vui lòng thử lại sau!"
+            msg = f"❌ **BUFF LIKE THẤT BẠI**\n\n🆔 **UID:** `{uid}`\n⚠️ **Chi tiết:** {result_msg}"
 
         bot.edit_message_text(msg, chat_id=status_msg.chat.id, message_id=status_msg.message_id, parse_mode="Markdown")
-
     except Exception as e:
         bot.reply_to(message, f"❌ **LỖI HỆ THỐNG:** `{str(e)}`", parse_mode="Markdown")
 
 # ====================================================
-# 8. KHỞI CHẠY BOT
+# 6. KHỞI CHẠY ĐA LUỒNG
 # ====================================================
 if __name__ == "__main__":
     flask_thread = threading.Thread(target=run_flask)
